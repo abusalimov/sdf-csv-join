@@ -20,8 +20,6 @@ def outerr(*args, **kwargs):
 def parse_sdf(filename, id_prop):
     result = defaultdict(dict)
 
-    outerr('{}: reading...'.format(filename), end='')
-
     with open(filename, 'rb') as sdfile:
         it = iter(sdfile)
 
@@ -45,22 +43,26 @@ def parse_sdf(filename, id_prop):
 
             next(it)  # skip newline
 
-    outerr('checking...', end='')
+    outerr('checking...')
     for mol, props in result.iteritems():
         if props.get(id_prop) != mol:
             raise ValueError('ID mismatch: {} != {}'
                              .format(props.get(id_prop), mol))
 
-    outerr('done: {} molecules'.format(len(result)))
-
     return dict(result)
 
 
-def read_csv(filename, id_prop):
+def read_csv(filename, prop_names):
     result = {}
 
+    id_prop = prop_names[0]
     with open(filename, 'rb') as csvfile:
-        reader = csv.DictReader(csvfile)
+        dialect = csv.Sniffer().sniff(csvfile.read(1024))
+        csvfile.seek(0)
+        reader = csv.DictReader(csvfile, dialect=dialect)
+        if reader.fieldnames and id_prop not in reader.fieldnames:
+            csvfile.seek(0)
+            reader = csv.DictReader(csvfile, prop_names, dialect=dialect)
         for row in reader:
             mol = row[id_prop]
             result[mol] = row
@@ -119,15 +121,22 @@ def create_row_type(prop_names, id_prop=None):
     return row_type
 
 
-def read_input_file(filename, id_prop):
+def read_input_file(filename, prop_names):
     ext = os.path.splitext(filename)[1].lower()
-    if ext == 'csv':
-        return read_csv(filename, id_prop)
+
+    outerr('{}: reading...'.format(filename))
+
+    if ext == '.csv':
+        ret = read_csv(filename, prop_names)
     else:
-        if ext != 'sdf':
+        if ext != '.sdf':
             outerr('{}: will be treated as SDF'.format(filename),
                   file=sys.stderr)
-        return parse_sdf(filename, id_prop)
+        ret = parse_sdf(filename, id_prop=prop_names[0])
+
+    outerr('done: {} molecules'.format(len(ret)))
+
+    return ret
 
 
 def main():
@@ -146,11 +155,11 @@ def main():
 
     row_type = create_row_type(args.props, id_prop=args.id)
 
-    haystack = read_input_file(args.haystack_file, id_prop=args.id)
+    haystack = read_input_file(args.haystack_file, row_type._prop_names)
 
     needle = set()
     for needle_file in args.needle_files:
-        needle |= set(read_input_file(needle_file, id_prop=args.id))
+        needle |= set(read_input_file(needle_file, row_type._prop_names))
 
     result = join_results(haystack, needle, row_type)
 
