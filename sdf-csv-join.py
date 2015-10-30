@@ -94,6 +94,13 @@ def write_csv(filename, table, row_type=None):
         writer.writerows(table.itervalues())
 
 
+def write_lst(filename, table, row_type=None):
+    with open(filename, 'wb') as lstfile:
+        print('*e*\n\n', file=lstfile)
+        for mol in table:
+            print(mol, file=lstfile)
+
+
 def print_table(table, row_type):
     header = row_type._prop_names
     rows = list(table.itervalues())
@@ -140,10 +147,24 @@ def read_input_file(filename, prop_names):
     return ret
 
 
+def write_output_file(filename, table, row_type=None):
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext == '.csv':
+        write_csv(filename, table, row_type)
+    else:
+        if ext != '.lst':
+            outerr('{}: will be treated as LST'.format(filename),
+                  file=sys.stderr)
+        write_lst(filename, table, row_type)
+
+    outerr('{}: result saved'.format(filename))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--output',
-                        help='CSV output file')
+                        help='CSV or LST output file')
     parser.add_argument('-i', '--id', type=str, default='ID',
                         help='ID property name')
     parser.add_argument('-p', '--props', type=str, default='',
@@ -166,7 +187,7 @@ def main():
 
     print_table(result, row_type)
     if args.output is not None:
-        write_csv(args.output, result, row_type)
+        write_output_file(args.output, result, row_type)
 
 if __name__ == '__main__':
     main()
