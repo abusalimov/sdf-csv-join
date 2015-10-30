@@ -105,6 +105,8 @@ def print_table(table, row_type):
         assert isinstance(row, row_type)
         print('  '.join('{:>{}}'.format(r, w) for r, w in zip(row, col_width)))
 
+    print('\nTOTAL: {}'.format(len(rows)))
+
 
 def create_row_type(prop_names, id_prop=None):
     if isinstance(prop_names, basestring):
