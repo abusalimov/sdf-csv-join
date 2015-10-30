@@ -69,10 +69,14 @@ def read_csv(filename, prop_names):
     return result
 
 
-def join_results(haystack, needle, row_type, include_none=False):
+def join_results(haystack, needle, row_type, extra_prop_names=[],
+                 include_none=False):
+    if isinstance(extra_prop_names, basestring):
+        extra_prop_names = extra_prop_names.replace(',', ' ').split()
     result = dict()
+    extras = dict()
 
-    for mol in needle:
+    for mol, extra_props in needle.iteritems():
         try:
             props = haystack[mol]
         except KeyError:
@@ -81,8 +85,11 @@ def join_results(haystack, needle, row_type, include_none=False):
         else:
             result[mol] = row_type(**dict((prop, props.get(prop, ''))
                                           for prop in row_type._prop_names))
+            extras[mol] = dict((prop, extra_props[prop])
+                               for prop in extra_prop_names
+                               if prop in extra_props)
 
-    return result
+    return result, extras
 
 
 def write_csv(filename, table, row_type=None):
@@ -94,16 +101,21 @@ def write_csv(filename, table, row_type=None):
         writer.writerows(table.itervalues())
 
 
-def print_table(table, row_type):
+def print_table(table, row_type, extras={}):
     header = row_type._prop_names
-    rows = list(table.itervalues())
+    mol_rows = list(table.iteritems())
 
-    col_width = [max(len(x) for x in col) for col in zip(header, *rows)]
+    col_width = [max(len(x) for x in col) for col in zip(header, *mol_rows)]
 
     print('  '.join('{:>{}}'.format(r, w) for r, w in zip(header, col_width)))
-    for row in rows:
-        assert isinstance(row, row_type)
-        print('  '.join('{:>{}}'.format(r, w) for r, w in zip(row, col_width)))
+    for mol, row in mol_rows:
+        assert isinstance(row, row_type), type(row)
+        print('  '.join('{:>{}}'.format(r, w) for r, w in zip(row, col_width)),
+              end='')
+        if mol in extras:
+            print('    {}'.format(extras[mol]))
+        else:
+            print()
 
 
 def create_row_type(prop_names, id_prop=None):
@@ -146,6 +158,8 @@ def main():
                         help='ID property name')
     parser.add_argument('-p', '--props', type=str, default='',
                         help='Properties to extract from the haystack')
+    parser.add_argument('-e', '--extra-props', type=str, default='',
+                        help='Optional properties to extract from needles')
     parser.add_argument('haystack_file',
                         help='SDF or CSV file to search in')
     parser.add_argument('needle_files', nargs='+',
@@ -156,13 +170,13 @@ def main():
 
     haystack = read_input_file(args.haystack_file, row_type._prop_names)
 
-    needle = set()
+    needle = dict()
     for needle_file in args.needle_files:
-        needle |= set(read_input_file(needle_file, row_type._prop_names))
+        needle.update(read_input_file(needle_file, row_type._prop_names))
 
-    result = join_results(haystack, needle, row_type)
+    result, extras = join_results(haystack, needle, row_type, args.extra_props)
 
-    print_table(result, row_type)
+    print_table(result, row_type, extras)
     if args.output is not None:
         write_csv(args.output, result, row_type)
 
