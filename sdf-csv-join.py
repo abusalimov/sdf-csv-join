@@ -8,6 +8,7 @@ import re
 import sys
 from collections import defaultdict
 from collections import namedtuple
+from collections import OrderedDict
 
 
 __author__ = "Eldar Abusalimov"
@@ -82,7 +83,22 @@ def join_results(haystack, needle, row_type, include_none=False):
             result[mol] = row_type(**dict((prop, props.get(prop, ''))
                                           for prop in row_type._prop_names))
 
-    return result
+    def sort_key(mol_row):
+        mol, row = mol_row
+        key_props = []
+
+        for prop in row[1:]:
+            try:
+                prop = int(prop, base=10)
+            except ValueError:
+                pass
+            key_props.append(prop)
+        else:
+            key_props.append(row[0])
+
+        return key_props
+
+    return OrderedDict(sorted(result.iteritems(), key=sort_key))
 
 
 def write_csv(filename, table, row_type=None):
