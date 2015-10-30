@@ -4,6 +4,7 @@ from __future__ import print_function
 import argparse
 import csv
 import os.path
+import re
 import sys
 from collections import defaultdict
 from collections import namedtuple
@@ -17,6 +18,9 @@ def outerr(*args, **kwargs):
     print(*args, **kwargs)
 
 
+SDF_HEADER_RE = re.compile(r'^>\s*<(.*?)>\s*(?:\((.*?)\)\s*)?$')
+
+
 def parse_sdf(filename, id_prop):
     result = defaultdict(dict)
 
@@ -24,15 +28,12 @@ def parse_sdf(filename, id_prop):
         it = iter(sdfile)
 
         for line in it:
-            if line[0] != '>':
+            m = SDF_HEADER_RE.match(line)
+            if not m:
                 continue
 
-            header = line.split()
-            prop = header[1][1:-1]
-            try:
-                mol = header[2][1:-1]
-            except IndexError:
-                mol = None
+            prop = m.group(1)
+            mol = m.group(2) or None
 
             value = next(it).rstrip()
 
@@ -40,8 +41,6 @@ def parse_sdf(filename, id_prop):
             if prop in props:
                 raise ValueError('Conflicting property name: {}'.format(prop))
             props[prop] = value
-
-            next(it)  # skip newline
 
     outerr('checking...')
     for mol, props in result.iteritems():
